@@ -24,6 +24,10 @@ class EventSource(Protocol[EventType]):
     def dispatch(self, event: Event):
         raise NotImplementedError()
 
+    def listen(self, listener: EventListener[EventType]) -> EventListener[EventType]:
+        self.add_listener(listener)
+        return listener
+
 
 @runtime_checkable
 class EventDispatcher(Protocol):
