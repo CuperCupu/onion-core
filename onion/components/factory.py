@@ -1,6 +1,6 @@
 import inspect
 from collections import abc
-from typing import TypeVar, Any, Type, get_origin, get_args, Union
+from typing import TypeVar, Any, Type, get_origin, get_args, Union, Iterable
 
 from onion.components.component import Inject, InputImpl, PropertyImpl
 from onion.core.events import EventDispatcher, EventHub
@@ -33,6 +33,38 @@ class AmbiguousDependency(ComponentException):
         self.candidates = candidates
 
 
+class FieldReflection:
+
+    def __init__(self, cls: type, name: str, type_: type):
+        self.cls = cls
+        self.name = name
+        self.type = type_
+
+
+class ClassReflection:
+
+    def __init__(self, type_: type):
+        self.type = type_
+
+    def _find_fields_for_generic(self, target):
+        result = []
+        if hasattr(self.type, "__annotations__"):
+            annotations = self.type.__annotations__
+            for field_name, field_type in annotations.items():
+                origin = get_origin(field_type)
+                if origin == target:
+                    result.append(FieldReflection(self.type, field_name, field_type))
+        return result
+
+    @property
+    def properties(self) -> list[FieldReflection]:
+        return self._find_fields_for_generic(Property)
+
+    @property
+    def inputs(self) -> list[FieldReflection]:
+        return self._find_fields_for_generic(Input)
+
+
 class _ObjectInitializer:
 
     def __init__(self, name: str, instance: Any, kwargs: dict, dispatcher: EventDispatcher, event_hub: EventHub):
@@ -49,14 +81,11 @@ class _ObjectInitializer:
         return hasattr(type_, "__annotations__")
 
     def _initialize_fields(self) -> None:
-        if self.need_initializing(self.type):
-            annotations = self.type.__annotations__
-            for field_name, field_type in annotations.items():
-                origin = get_origin(field_type)
-                if origin == Property:
-                    self._add_property(field_name, field_type)
-                elif origin == Input:
-                    self._add_input(field_name, field_type)
+        reflection = ClassReflection(self.type)
+        for field in reflection.properties:
+            self._add_property(field.name, field.type)
+        for field in reflection.inputs:
+            self._add_input(field.name, field.type)
 
     def _resolve_field(self, field_name: str, field_type: type):
         if field_name in self.kwargs:
@@ -75,7 +104,7 @@ class _ObjectInitializer:
         try:
             value = self._resolve_field(field_name, field_type)
         except ValueError as exc:
-            raise ValueError(f"Missing value for property '{field_name}'") from exc
+            raise ValueError(f"Missing value for property '{field_name}' for component '{self.name}'") from exc
         prop = PropertyImpl(self.instance, value, self.dispatcher)
         setattr(self.instance, field_name, prop)
         self.event_hub.register(f"{self.name}!{field_name}", prop)
@@ -84,7 +113,7 @@ class _ObjectInitializer:
         try:
             value = self._resolve_field(field_name, field_type)
         except ValueError as exc:
-            raise ValueError(f"Missing initial value for input '{field_name}'") from exc
+            raise ValueError(f"Missing initial value for input '{field_name}' for component '{self.name}'") from exc
         prop = InputImpl(self.instance, value, self.dispatcher)
         setattr(self.instance, field_name, prop)
         self.event_hub.register(f"{self.name}<{field_name}", prop)
@@ -191,13 +220,16 @@ class ComponentFactory:
             else:
                 self._component_of_types[t].append(instance)
 
-    def add(self, name: str, type_: Type[T], *args, **kwargs) -> Union[T, Component]:
+    def add(self, name: str, type_: Type[T], args: Iterable[Any] = tuple(), kwargs: dict = None, properties: dict = None) -> Union[T, Component]:
+        kwargs = kwargs or {}
+        properties = properties or {}
+
         instance = type_.__new__(type_)
 
         instance.name = name
 
         if _ObjectInitializer.need_initializing(type_):
-            _ObjectInitializer(name, instance, kwargs, self.dispatcher, self.event_hub)
+            _ObjectInitializer(name, instance, properties, self.dispatcher, self.event_hub)
 
         self._to_initialize.append((instance, name, args, kwargs))
 

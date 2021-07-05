@@ -6,6 +6,8 @@ authors = ["Suhendi Andigo <suhendiandigo@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+pyyaml = "^5.4.1"
+pydantic = "^1.8.2"
 
 [tool.poetry.dev-dependencies]
 pytest-asyncio-cooperative = "^0.17.1"

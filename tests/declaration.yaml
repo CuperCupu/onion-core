@@ -1,0 +1,20 @@
+name: Example App
+version: 0.1.0
+requirements:
+  - onion-core
+components:
+  - name: checker
+    type: component
+    cls: example_app.checker.ThresholdChecker
+    props:
+      threshold: 10.0
+  - name: accumulator
+    type: component
+    cls: example_app.accumulator.Accumulator
+    kwargs:
+      checker:
+        - name: checker
+          type: component
+          cls: example_app.checker.ThresholdChecker
+          props:
+            threshold: 10.0
