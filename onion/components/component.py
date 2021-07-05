@@ -2,60 +2,15 @@ import asyncio
 from dataclasses import dataclass
 from typing import Generic, Any, Type, TypeVar
 
-from onion.core.events import Event, EventDispatcher, EventSourceImpl
-from .base import Input, Output, Property, ValueChangedEvent
+from onion.core.events import EventDispatcher, EventSourceImpl, EventSource, EventType, EventListener, Event
+from .base import Property, ValueChangedEvent
 
 T = TypeVar("T")
 
 
-class InputImpl(EventSourceImpl[ValueChangedEvent[T]], Input[T]):
-
-    _value: T
-
-    def __init__(self, owner: Any, initial_value: T, dispatcher: EventDispatcher):
-        self._owner = owner
-        super().__init__(dispatcher)
-        self._value = initial_value
-
-    @property
-    def owner(self) -> Any:
-        return self._owner
-
-    async def receive_input(self, value: T) -> None:
-        """Invoked by external source to indicate that this object has received an input."""
-        prev_value = self._value
-        self._value = value
-        ev = ValueChangedEvent(self, value, prev_value)
-        self.dispatch(ev)
-
-    @property
-    def value(self) -> T:
-        return self._value
-
-
-class OutputImpl(Output[T]):
-
-    _destinations: list[Input[T]]
-
-    def __init__(self, owner: Any):
-        self._owner = owner
-        self._destinations = []
-
-    @property
-    def owner(self) -> Any:
-        return self._owner
-
-    async def add_destination(self, dest: Input[T]) -> None:
-        self._destinations.append(dest)
-
-    async def remove_destination(self, dest: Input[T]) -> None:
-        self._destinations.remove(dest)
-
-    async def send(self, value: T) -> None:
-        if self._destinations:
-            await asyncio.gather(
-                *(dest.receive_input(value) for dest in self._destinations)
-            )
+@dataclass
+class Input:
+    pass
 
 
 class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
@@ -87,6 +42,37 @@ class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
 
     def __repr__(self):
         return f"Property(owner={self._owner}, type={self._type.__name__}, value={self._value})"
+
+
+class PropertyView(Property[T], EventSource[ValueChangedEvent[T]]):
+
+    def __init__(self, owner: Any, prop: Property[T]):
+        self._prop = prop
+        self._owner = owner
+
+    @property
+    def owner(self) -> Any:
+        return self._owner
+
+    @property
+    def prop(self) -> Property[T]:
+        return self._prop
+
+    def add_listener(self, listener: EventListener[EventType]) -> None:
+        self._prop.add_listener(listener)
+
+    def remove_listener(self, listener: EventListener[EventType]) -> None:
+        self._prop.remove_listener(listener)
+
+    def dispatch(self, event: Event) -> None:
+        raise TypeError("Unable to dispatch event of property view")
+
+    @property
+    def value(self) -> T:
+        return self._prop.value
+
+    def __repr__(self):
+        return f"PropertyView(owner={self._owner}, prop={self._prop})"
 
 
 @dataclass

@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any, TextIO, Optional, Union, Protocol, runtime_checkable, Generic, TypeVar, List
 
 import yaml
-from pydantic import BaseModel, validator, Field, ValidationError
+from pydantic import BaseModel, validator, Field, ValidationError, PrivateAttr
 from pydantic.error_wrappers import ErrorWrapper
 
 from onion.components.factory import ComponentFactory, ClassReflection
@@ -18,6 +18,13 @@ class CompType(str, Enum):
 
 class Reference(BaseModel):
     ref: str = Field(alias="$ref")
+    prop: Optional[str] = Field(alias="$prop", default=None)
+
+    def resolve(self, references) -> Any:
+        ref = references[self.ref]
+        if self.prop is not None:
+            ref = getattr(ref, self.prop)
+        return ref
 
 
 class ComponentSchema(BaseModel):
@@ -27,6 +34,11 @@ class ComponentSchema(BaseModel):
     args: list[Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = []
     kwargs: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}
     props: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}  # The initial value of properties
+    _to_refer: list[Replaceable[Reference]] = PrivateAttr([])
+
+    @property
+    def to_refer(self) -> List[Replaceable[Reference]]:
+        return self._to_refer
 
     @validator("cls", pre=True)
     def validate_cls(cls, v):
@@ -145,7 +157,7 @@ class Declaration:
             self.schema = DeclarationSchema.parse_obj(schema)
         else:
             self.schema = schema.copy(deep=True)
-        self._references = {}
+        self._schemas = {}
         for component in self.schema.components:
             self._register_schema(component)
 
@@ -158,9 +170,32 @@ class Declaration:
         if self._created:
             raise ValueError("Unable to reuse declaration")
         self._created = True
+
+        to_instantiate = []
+        visited = set()
+
+        def visit(schema_: ComponentSchema):
+            if schema_.name in visited:
+                return
+            visited.add(schema_.name)
+
+            for repl_ in schema_.to_refer:
+                ref_ = repl_.placeholder.ref
+                ref_schema = self._schemas[ref_]
+                visit(ref_schema)
+
+            to_instantiate.append(schema_)
+
+        for schema in self.schema.components:
+            visit(schema)
+
         components = []
         references = {}
-        for schema in self.schema.components:
+        for schema in to_instantiate:
+            for repl in schema.to_refer:
+                ref = repl.placeholder
+                repl.replace(ref.resolve(references))
+
             component = factory.add(
                 name=schema.name,
                 type_=schema.cls,
@@ -169,22 +204,19 @@ class Declaration:
                 properties=schema.props
             )
             references[component.name] = component
-            components.append(component)
 
-        for repl in self._to_refer:
-            ref = repl.placeholder
-            repl.replace(references[ref.ref])
+            components.append(component)
 
         return components
 
     def _register_schema(self, schema: ComponentSchema, root: str = None) -> None:
         root = root.split(".") if root else []
-        if schema.name in self._references:
+        if schema.name in self._schemas:
             raise ValidationError(
                 [ErrorWrapper(ValueError(f"Duplicate component name '{schema.name}'"), loc=("components", *root))],
                 DeclarationSchema
             )
-        self._references[schema.name] = schema
+        self._schemas[schema.name] = schema
 
     def _travel_schemas(self, components: list[ComponentSchema]) -> None:
         """Travel the components schema to flatten nested definitions."""
@@ -220,12 +252,6 @@ class Declaration:
 
         return references, declarations
 
-    def _replace_references(self, references: list[Replaceable[Reference]]) -> None:
-        for item in references:
-            name = item.placeholder.ref
-            if name in self._references:
-                item.replace(self._references[name])
-
     def _process_field(self, schema: ComponentSchema, fields: Union[list[Any], dict[str, Any]], fields_type: str):
         references = []
         declaration = []
@@ -233,7 +259,7 @@ class Declaration:
         def parse_field(field, field_name, field_value):
             ref_cls = DictReference if isinstance(field, dict) else ListReference
             if isinstance(field_value, Reference):
-                if field_value.ref not in self._references:
+                if field_value.ref not in self._schemas:
                     raise ValidationError(
                         [ErrorWrapper(
                             NameError(f"Invalid reference '{field_value.ref}' for field {fields_type} of {schema.name}"),
@@ -256,6 +282,9 @@ class Declaration:
             elif isinstance(value, list):
                 for i, item in enumerate(value):
                     parse_field(value, i, item)
+            elif isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    parse_field(value, sub_key, sub_value)
 
         if isinstance(fields, list):
             for key, value in enumerate(fields):
@@ -263,6 +292,9 @@ class Declaration:
         elif isinstance(fields, dict):
             for key, value in fields.items():
                 parse_field(fields, key, value)
+
+        schema.to_refer.extend(references)
+
         return references, declaration
 
     @staticmethod

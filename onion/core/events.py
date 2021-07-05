@@ -21,7 +21,7 @@ class EventSource(Protocol[EventType]):
     def remove_listener(self, listener: EventListener[EventType]) -> None:
         raise NotImplementedError()
 
-    def dispatch(self, event: Event):
+    def dispatch(self, event: Event) -> None:
         raise NotImplementedError()
 
     def listen(self, listener: EventListener[EventType]) -> EventListener[EventType]:

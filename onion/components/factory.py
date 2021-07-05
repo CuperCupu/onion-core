@@ -2,9 +2,9 @@ import inspect
 from collections import abc
 from typing import TypeVar, Any, Type, get_origin, get_args, Union, Iterable
 
-from onion.components.component import Inject, InputImpl, PropertyImpl
+from onion.components.component import Inject, PropertyImpl, PropertyView, Input
 from onion.core.events import EventDispatcher, EventHub
-from .base import Component, Input, Property
+from .base import Component, Property
 from .container import ComponentContainer
 
 T = TypeVar("T")
@@ -60,10 +60,6 @@ class ClassReflection:
     def properties(self) -> list[FieldReflection]:
         return self._find_fields_for_generic(Property)
 
-    @property
-    def inputs(self) -> list[FieldReflection]:
-        return self._find_fields_for_generic(Input)
-
 
 class _ObjectInitializer:
 
@@ -84,20 +80,24 @@ class _ObjectInitializer:
         reflection = ClassReflection(self.type)
         for field in reflection.properties:
             self._add_property(field.name, field.type)
-        for field in reflection.inputs:
-            self._add_input(field.name, field.type)
 
     def _resolve_field(self, field_name: str, field_type: type):
+        default_value = getattr(self.type, field_name, ...)
         if field_name in self.kwargs:
             value = self.kwargs.pop(field_name)
+            if isinstance(default_value, Input) and not isinstance(value, Property):
+                raise TypeError(field_name, type(value))
         else:
-            value = getattr(self.type, field_name, ...)
-            if value is ...:
+            if default_value is ...:
                 prop_type = get_args(field_type)[0]
                 if get_origin(prop_type) == Union and type(None) in get_args(prop_type):
                     value = None
                 else:
                     raise ValueError(field_name)
+            elif isinstance(default_value, Input):
+                raise ValueError(field_name)
+            else:
+                value = default_value
         return value
 
     def _add_property(self, field_name: str, field_type: type) -> None:
@@ -105,18 +105,15 @@ class _ObjectInitializer:
             value = self._resolve_field(field_name, field_type)
         except ValueError as exc:
             raise ValueError(f"Missing value for property '{field_name}' for component '{self.name}'") from exc
-        prop = PropertyImpl(self.instance, value, self.dispatcher)
+        except TypeError as exc:
+            raise ValueError(f"Invalid value for property '{field_name}' for component '{self.name}'. An instance of "
+                             f"Property is required, not {exc.args[1]}") from exc
+        if isinstance(value, Property):
+            prop = PropertyView(self.instance, value)
+        else:
+            prop = PropertyImpl(self.instance, value, self.dispatcher)
+            self.event_hub.register(f"{self.name}!{field_name}", prop)
         setattr(self.instance, field_name, prop)
-        self.event_hub.register(f"{self.name}!{field_name}", prop)
-
-    def _add_input(self, field_name: str, field_type: type) -> None:
-        try:
-            value = self._resolve_field(field_name, field_type)
-        except ValueError as exc:
-            raise ValueError(f"Missing initial value for input '{field_name}' for component '{self.name}'") from exc
-        prop = InputImpl(self.instance, value, self.dispatcher)
-        setattr(self.instance, field_name, prop)
-        self.event_hub.register(f"{self.name}<{field_name}", prop)
 
 
 class ComponentFactory:

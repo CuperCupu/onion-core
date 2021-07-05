@@ -1,2 +1,3 @@
-from .base import Component, Setup, Runnable, Input, Output, Property
+from .base import Component, Setup, Runnable, Property
 from .application import Application
+from .component import Input

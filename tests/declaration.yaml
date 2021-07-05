@@ -8,13 +8,17 @@ components:
     cls: example_app.checker.ThresholdChecker
     props:
       threshold: 10.0
+      temperature:
+        $ref: thermometer
+        $prop: temperature
   - name: accumulator
     type: component
     cls: example_app.accumulator.Accumulator
     kwargs:
       checker:
-        - name: checker
-          type: component
-          cls: example_app.checker.ThresholdChecker
-          props:
-            threshold: 10.0
+        - $ref: checker
+  - name: thermometer
+    type: component
+    cls: example_app.thermometer.Thermometer
+    props:
+      temperature: 50.0

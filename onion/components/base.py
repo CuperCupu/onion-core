@@ -41,34 +41,6 @@ class ValueChangedEvent(Event, Generic[T]):
 
 
 @runtime_checkable
-class Input(EventSource[ValueChangedEvent[T]], Protocol[T]):
-
-    @property
-    def owner(self) -> Any:
-        raise NotImplementedError()
-
-    async def receive_input(self, value: T) -> None:
-        raise NotImplementedError()
-
-
-@runtime_checkable
-class Output(Protocol[T]):
-
-    @property
-    def owner(self) -> Any:
-        raise NotImplementedError()
-
-    async def add_destination(self, dest: Input[T]) -> None:
-        raise NotImplementedError()
-
-    async def remove_destination(self, dest: Input[T]) -> None:
-        raise NotImplementedError()
-
-    async def send(self, value: T) -> None:
-        raise NotImplementedError()
-
-
-@runtime_checkable
 class Property(EventSource[ValueChangedEvent[T]], Protocol[T]):
 
     @property
