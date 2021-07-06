@@ -2,7 +2,7 @@ import asyncio
 from contextlib import contextmanager
 
 from onion.core.events import EventDispatcher, DefaultEventHub
-from . import Setup, Runnable
+from .base import Setup, Runnable
 from .container import ComponentContainer
 from .factory import ComponentFactory
 

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import importlib
-from typing import Optional, Any, Union, List, TextIO
+from functools import cached_property
+from typing import Optional, Any, Union, List, TextIO, Iterable
 
 import yaml
 from pydantic import BaseModel, Field, PrivateAttr, validator
 
-from onion.components.factory import ClassReflection
+from onion.components.reflection import ClassReflection
 from .repl import Replaceable
+from .util import validation_error
+from ..components import Input
 
 
 class Reference(BaseModel):
@@ -21,7 +24,7 @@ class Reference(BaseModel):
         return ref
 
     @staticmethod
-    def create(ref: str, prop: Optional[str] = None) -> "Reference":
+    def of(ref: str, prop: Optional[str] = None) -> "Reference":
         return Reference.parse_obj({"$ref": ref, "$prop": prop})
 
 
@@ -65,10 +68,37 @@ class ComponentSchema(BaseModel):
 
         return cls_
 
-    @validator("props")
-    def validate_properties(cls, v, values):
-        reflection = ClassReflection(values["cls"])
-        return v
+    def _error(self, location: Iterable[str], error: Exception):
+        raise validation_error(
+            ComponentSchema, error, (*self.name.split("."), *location)
+        )
+
+    _reflection: ClassReflection = PrivateAttr()
+
+    @property
+    def reflection(self) -> ClassReflection:
+        return self._reflection
+
+    def validate_schema(self):
+        self._reflection = ClassReflection(self.cls)
+        for field in self.reflection.properties:
+            if field.name not in self.props:
+                if field.default is ...:
+                    self._error(
+                        ("props", field.name),
+                        AttributeError("Missing default property value"),
+                    )
+                elif isinstance(field.default, Input):
+                    self._error(("props", field.name), AttributeError("Missing input"))
+        for field in self.reflection.events:
+            if field.name not in self.props and isinstance(field.default, Input):
+                self._error(
+                    ("props", field.name), AttributeError("Missing input event")
+                )
+
+    def __init__(self, **data: Any):
+        super().__init__(**data)
+        self.validate_schema()
 
 
 class DeclarationSchema(BaseModel):

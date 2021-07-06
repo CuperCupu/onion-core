@@ -6,6 +6,7 @@ from onion.components.component import Inject, PropertyImpl, PropertyView, Input
 from onion.core.events import EventHub, EventSource, EventSourceImpl, EventDispatcher
 from .base import Component, Property
 from .container import ComponentContainer
+from .reflection import ClassReflection, FieldReflection
 
 T = TypeVar("T")
 
@@ -34,36 +35,6 @@ class AmbiguousDependency(ComponentException):
         self.candidates = candidates
 
 
-class FieldReflection:
-    def __init__(self, cls: type, name: str, type_: type):
-        self.cls = cls
-        self.name = name
-        self.type = type_
-
-
-class ClassReflection:
-    def __init__(self, type_: type):
-        self.type = type_
-
-    def _find_fields_for_generic(self, target):
-        result = []
-        if hasattr(self.type, "__annotations__"):
-            annotations = self.type.__annotations__
-            for field_name, field_type in annotations.items():
-                origin = get_origin(field_type)
-                if origin == target:
-                    result.append(FieldReflection(self.type, field_name, field_type))
-        return result
-
-    @property
-    def properties(self) -> list[FieldReflection]:
-        return self._find_fields_for_generic(Property)
-
-    @property
-    def events(self) -> list[FieldReflection]:
-        return self._find_fields_for_generic(EventSource)
-
-
 class _ObjectInitializer:
     def __init__(
         self,
@@ -88,72 +59,70 @@ class _ObjectInitializer:
     def _initialize_fields(self) -> None:
         reflection = ClassReflection(self.type)
         for field in reflection.properties:
-            self._add_property(field.name, field.type)
+            self._add_property(field)
         for field in reflection.events:
-            self._add_event(field.name, field.type)
+            self._add_event(field)
 
-    def _resolve_field(self, field_name: str, field_type: type, default=None):
-        default_value = getattr(self.type, field_name, ...)
-        origin = get_origin(field_type)
-        if field_name in self.kwargs:
-            value = self.kwargs.pop(field_name)
-            if isinstance(default_value, Input) and not isinstance(value, origin):
-                raise TypeError(field_name, type(value))
+    def _resolve_field(self, field: FieldReflection, default=None):
+        if field.name in self.kwargs:
+            value = self.kwargs.pop(field.name)
+            if isinstance(field.default, Input) and not isinstance(value, field.origin):
+                raise TypeError(field.name, type(value))
         else:
-            if default_value is ...:
+            if field.default is ...:
                 if default:
                     value = default()
                 else:
-                    prop_type = get_args(field_type)[0]
+                    prop_type = field.args[0]
                     if get_origin(prop_type) == Union and type(None) in get_args(
                         prop_type
                     ):
                         value = None
                     else:
-                        raise ValueError(field_name)
-            elif isinstance(default_value, Input):
-                raise ValueError(field_name)
+                        raise ValueError(field.name)
+            elif isinstance(field.default, Input):
+                raise ValueError(field.name)
             else:
-                value = default_value
+                value = field.default
         return value
 
-    def _add_property(self, field_name: str, field_type: type) -> None:
+    def _add_property(self, field: FieldReflection) -> None:
         try:
-            value = self._resolve_field(field_name, field_type)
+            value = self._resolve_field(field)
         except ValueError as exc:
             raise ValueError(
-                f"Missing value for property '{field_name}' for component '{self.name}'"
+                f"Missing value for property '{field.name}' for component '{self.name}'"
             ) from exc
         except TypeError as exc:
             raise ValueError(
-                f"Invalid value for property '{field_name}' for component '{self.name}'. An instance of "
+                f"Invalid value for property '{field.name}' for component '{self.name}'. An instance of "
                 f"Property is required, not {exc.args[1]}"
             ) from exc
         if isinstance(value, Property):
             prop = PropertyView(self.instance, value)
         else:
             prop = PropertyImpl(self.instance, value, self.dispatcher)
-            self.event_hub.register(f"{self.name}!{field_name}", prop)
-        setattr(self.instance, field_name, prop)
+            self.event_hub.register(f"{self.name}!{field.name}", prop)
+        setattr(self.instance, field.name, prop)
 
-    def _add_event(self, field_name: str, field_type: type) -> None:
+    def _add_event(self, field: FieldReflection) -> None:
         try:
-            value = self._resolve_field(field_name, field_type, EventSourceImpl)
+            value = self._resolve_field(field, EventSourceImpl)
         except ValueError as exc:
             raise ValueError(
-                f"Missing value for event '{field_name}' for component '{self.name}'"
+                f"Missing value for event '{field.name}' for component '{self.name}'"
             ) from exc
         except TypeError as exc:
             raise ValueError(
-                f"Invalid value for event '{field_name}' for component '{self.name}'. An instance of "
+                f"Invalid value for event '{field.name}' for component '{self.name}'. An instance of "
                 f"EventSource is required, not {exc.args[1]}"
             ) from exc
         if isinstance(value, EventSource):
             prop = value
         else:
             prop = EventSourceImpl()
-            self.event_hub.register(f"{self.name}!{field_name}", prop)
-        setattr(self.instance, field_name, prop)
+            self.event_hub.register(f"{self.name}!{field.name}", prop)
+        setattr(self.instance, field.name, prop)
 
 
 class ComponentFactory:

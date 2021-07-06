@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import runtime_checkable, Protocol, TypeVar, Any, Generic
 
@@ -36,10 +37,18 @@ class ValueChangedEvent(Generic[T]):
     prev_value: T
 
 
-@runtime_checkable
-class Property(EventSource[ValueChangedEvent[T]], Protocol[T]):
+class Property(EventSource[ValueChangedEvent[T]], ABC):
     @property
+    @abstractmethod
     def owner(self) -> Any:
         raise NotImplementedError()
 
-    value: T
+    @property
+    @abstractmethod
+    def value(self) -> T:
+        raise NotImplementedError()
+
+    @value.setter
+    @abstractmethod
+    def value(self, value: T) -> None:
+        raise NotImplementedError

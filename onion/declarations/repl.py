@@ -1,57 +1,38 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import runtime_checkable, Protocol, Any, TypeVar, Generic
+from typing import Any, TypeVar, Generic, Sequence
 
-
-@runtime_checkable
-class VariableReference(Protocol):
-    def _get(self) -> Any:
-        raise NotImplementedError()
-
-    def _set(self, value: Any) -> None:
-        raise NotImplementedError()
-
-    value = property(_get, _set)
-
-
-@dataclass
-class DictReference:
-    container: dict[str, Any]
-    key: str
-
-    def _get(self) -> Any:
-        return self.container[self.key]
-
-    def _set(self, value: Any) -> None:
-        self.container[self.key] = value
-
-    value = property(_get, _set)
-
-
-@dataclass
-class ListReference:
-    container: list[Any]
-    key: int
-
-    def _get(self) -> Any:
-        return self.container[self.key]
-
-    def _set(self, value: Any) -> None:
-        self.container[self.key] = value
-
-    value = property(_get, _set)
-
-
+C = TypeVar("C")
+K = TypeVar("K")
 T = TypeVar("T")
+
+
+class VariableReference(ABC, Generic[T, C, K]):
+    container: C
+    key: K
+
+    def __init__(self, container: C, key: K):
+        self.container = container
+        self.key = key
+
+    def _get(self) -> T:
+        return self.container[self.key]
+
+    def _set(self, value: T) -> None:
+        self.container[self.key] = value
+
+    value = property(_get, _set)
 
 
 @dataclass
 class Replaceable(Generic[T]):
-    owner: str
-    location: VariableReference
+    owner: Any
+    location: Sequence[str]
+    ref: VariableReference
     placeholder: T
 
     def replace(self, value: Any) -> None:
-        self.location.value = value
+        self.ref.value = value
 
     class Config:
         arbitrary_types_allowed = True

@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+from onion.components import Application
+from onion.core.events import DefaultEventDispatcher
 from onion.declarations import ComponentSchema, DeclarationSchema
 
 
@@ -17,6 +19,19 @@ def _create_default_schema(components: list[ComponentSchema]) -> DeclarationSche
     return DeclarationSchema(name="testing", version="testing", components=components)
 
 
+def _create_default_app() -> Application:
+    dispatcher = DefaultEventDispatcher()
+
+    application = Application(dispatcher)
+
+    return application
+
+
 @pytest.fixture
 def default_schema():
     return _create_default_schema
+
+
+@pytest.fixture
+def default_app():
+    return _create_default_app

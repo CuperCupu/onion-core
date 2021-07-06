@@ -36,16 +36,16 @@ class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
     def owner(self) -> Any:
         return self._owner
 
-    def _set_value(self, value: T) -> None:
+    @property
+    def value(self) -> T:
+        return self._value
+
+    @value.setter
+    def value(self, value: T) -> None:
         prev_value = self._value
         self._value = value
         ev = ValueChangedEvent(value, prev_value)
         self.dispatcher.dispatch_for(self, ev, self)
-
-    def _get_value(self) -> T:
-        return self._value
-
-    value = property(_get_value, _set_value)
 
     def __repr__(self):
         return f"Property(owner={self._owner}, type={self._type.__name__}, value={self._value})"
@@ -77,6 +77,10 @@ class PropertyView(Property[T], EventSource[ValueChangedEvent[T]]):
     @property
     def value(self) -> T:
         return self._prop.value
+
+    @value.setter
+    def value(self, value: T) -> None:
+        raise TypeError("View is not allowed to mutate property value")
 
     def __repr__(self):
         return f"PropertyView(owner={self._owner}, prop={self._prop})"

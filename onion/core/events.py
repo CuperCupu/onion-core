@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Awaitable
-from typing import Any, TypeVar, Protocol, runtime_checkable, Union
+from typing import Any, TypeVar, Protocol, runtime_checkable, Union, Generic
 
 EventType = TypeVar("EventType")
 EventListener = Union[
@@ -9,15 +9,17 @@ EventListener = Union[
 ]
 
 
-@runtime_checkable
-class EventSource(Protocol[EventType]):
+class EventSource(ABC, Generic[EventType]):
     @property
+    @abstractmethod
     def listeners(self) -> Iterable[EventListener]:
         raise NotImplementedError()
 
+    @abstractmethod
     def add_listener(self, listener: EventListener) -> None:
         raise NotImplementedError()
 
+    @abstractmethod
     def remove_listener(self, listener: EventListener) -> None:
         raise NotImplementedError()
 
