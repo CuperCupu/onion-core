@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import importlib
-from typing import Optional, Any, Union, List, TextIO, Iterable, TypeVar, Dict, Generic
+from typing import Optional, Any, Union, List, TextIO, Iterable, TypeVar
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, validator, ValidationError
-from pydantic.generics import GenericModel
+from pydantic import BaseModel, Field, PrivateAttr, validator
 
 from onion.components import Input
 from onion.components.reflection import ClassReflection
