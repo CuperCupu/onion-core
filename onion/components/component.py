@@ -2,7 +2,13 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Type, TypeVar, Iterable
 
-from onion.core.events import EventDispatcher, EventSourceImpl, EventSource, EventType, EventListener
+from onion.core.events import (
+    EventDispatcher,
+    EventSourceImpl,
+    EventSource,
+    EventType,
+    EventListener,
+)
 from .base import Property, ValueChangedEvent
 
 T = TypeVar("T")
@@ -46,7 +52,6 @@ class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
 
 
 class PropertyView(Property[T], EventSource[ValueChangedEvent[T]]):
-
     def __init__(self, owner: Any, prop: Property[T]):
         self._prop = prop
         self._owner = owner

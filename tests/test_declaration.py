@@ -14,31 +14,26 @@ async def test_declaration(default_schema):
                 name="actuator",
                 cls="example_app.actuator.Actuator",
                 props=dict(
-                    threshold=10.0,
-                    event=Reference.create("thermometer", "temperature")
-                )
+                    threshold=10.0, event=Reference.create("thermometer", "temperature")
+                ),
             ),
             ComponentSchema(
                 name="checker",
                 cls="example_app.checker.ThresholdChecker",
                 props=dict(
                     threshold=10.0,
-                    temperature=Reference.create("thermometer", "temperature")
-                )
+                    temperature=Reference.create("thermometer", "temperature"),
+                ),
             ),
             ComponentSchema(
                 name="thermometer",
                 cls="example_app.thermometer.Thermometer",
-                props=dict(
-                    temperature=5.0
-                )
-            )
+                props=dict(temperature=5.0),
+            ),
         ]
     )
 
-    processor = DeclarationProcessor(
-        schema
-    )
+    processor = DeclarationProcessor(schema)
 
     dispatcher = DefaultEventDispatcher()
 
@@ -69,8 +64,8 @@ def test_parsing_declaration(default_schema):
                 cls="example_app.checker.ThresholdChecker",
                 props=dict(
                     threshold=10.0,
-                    temperature=Reference.create("thermometer", "temperature")
-                )
+                    temperature=Reference.create("thermometer", "temperature"),
+                ),
             ),
         ]
     )
@@ -85,8 +80,8 @@ def test_parsing_declaration(default_schema):
                 cls="example_app.checker.ThresholdChecker",
                 props=dict(
                     threshold=10.0,
-                    temperature=Reference.create("thermometer", "temperature")
-                )
+                    temperature=Reference.create("thermometer", "temperature"),
+                ),
             ),
         ]
     )

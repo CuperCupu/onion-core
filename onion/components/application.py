@@ -8,7 +8,6 @@ from .factory import ComponentFactory
 
 
 class Application(Runnable):
-
     def __init__(self, dispatcher: EventDispatcher):
         self.dispatcher = dispatcher
         self.event_hub = DefaultEventHub()
@@ -18,7 +17,9 @@ class Application(Runnable):
     def factory(self) -> ComponentFactory:
         loop = asyncio.get_running_loop()
         static = [self, self.components, self.dispatcher, loop]
-        factory = ComponentFactory(self.dispatcher, self.event_hub, self.components, static)
+        factory = ComponentFactory(
+            self.dispatcher, self.event_hub, self.components, static
+        )
         with factory:
             yield factory
 

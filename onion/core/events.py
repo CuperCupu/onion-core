@@ -4,12 +4,13 @@ from collections.abc import Callable, Iterable, Awaitable
 from typing import Any, TypeVar, Protocol, runtime_checkable, Union
 
 EventType = TypeVar("EventType")
-EventListener = Union[Callable[[Any, EventType], None], Callable[[Any, EventType], Awaitable[None]]]
+EventListener = Union[
+    Callable[[Any, EventType], None], Callable[[Any, EventType], Awaitable[None]]
+]
 
 
 @runtime_checkable
 class EventSource(Protocol[EventType]):
-
     @property
     def listeners(self) -> Iterable[EventListener]:
         raise NotImplementedError()
@@ -29,9 +30,10 @@ ListenerCollection = Iterable[EventListener[EventType]]
 
 
 class EventDispatcher(ABC):
-
     @abstractmethod
-    def dispatch(self, sender: Any, event: EventType, listeners: ListenerCollection) -> None:
+    def dispatch(
+        self, sender: Any, event: EventType, listeners: ListenerCollection
+    ) -> None:
         raise NotImplementedError()
 
     def dispatch_for(self, sender: Any, event: EventType, source: EventSource) -> None:
@@ -44,7 +46,6 @@ class EventDispatcher(ABC):
 
 @runtime_checkable
 class EventHub(Protocol):
-
     def register(self, name: str, source: EventSource) -> None:
         raise NotImplementedError()
 
@@ -62,7 +63,6 @@ class EventHub(Protocol):
 
 
 class DefaultEventDispatcher(EventDispatcher):
-
     def __init__(self):
         self._loop = asyncio.get_running_loop()
         self._tasks = []
@@ -70,12 +70,12 @@ class DefaultEventDispatcher(EventDispatcher):
     def _done_callback(self, task: asyncio.Task) -> None:
         self._tasks.remove(task)
 
-    def dispatch(self, sender: Any, event: EventType, listeners: ListenerCollection) -> None:
+    def dispatch(
+        self, sender: Any, event: EventType, listeners: ListenerCollection
+    ) -> None:
         for listener in listeners:
             if asyncio.iscoroutinefunction(listener):
-                task = self._loop.create_task(
-                    listener(sender, event)
-                )
+                task = self._loop.create_task(listener(sender, event))
                 task.add_done_callback(self._done_callback)
                 self._tasks.append(task)
             else:

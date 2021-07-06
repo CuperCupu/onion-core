@@ -15,26 +15,26 @@ class ComponentException(Exception):
 
 
 class DependencyNotFound(ComponentException):
-
     def __init__(self, component: str, type_: type):
-        super().__init__(f"Component '{component}' depends on type {type_} with no known instance")
+        super().__init__(
+            f"Component '{component}' depends on type {type_} with no known instance"
+        )
         self.component = component
         self.type = type_
 
 
 class AmbiguousDependency(ComponentException):
-
     def __init__(self, component: str, type_: type, candidates: list[Any]):
         candidate_string = "\n".join(f"\t{x.name}: {x}" for x in candidates)
         super().__init__(
-            f"Component '{component}' depends on type {type_} with multiple possibility:\n{candidate_string}")
+            f"Component '{component}' depends on type {type_} with multiple possibility:\n{candidate_string}"
+        )
         self.component = component
         self.type = type_
         self.candidates = candidates
 
 
 class FieldReflection:
-
     def __init__(self, cls: type, name: str, type_: type):
         self.cls = cls
         self.name = name
@@ -42,7 +42,6 @@ class FieldReflection:
 
 
 class ClassReflection:
-
     def __init__(self, type_: type):
         self.type = type_
 
@@ -66,8 +65,14 @@ class ClassReflection:
 
 
 class _ObjectInitializer:
-
-    def __init__(self, name: str, instance: Any, kwargs: dict, dispatcher: EventDispatcher, event_hub: EventHub):
+    def __init__(
+        self,
+        name: str,
+        instance: Any,
+        kwargs: dict,
+        dispatcher: EventDispatcher,
+        event_hub: EventHub,
+    ):
         self.name = name
         self.instance = instance
         self.type = type(instance)
@@ -100,7 +105,9 @@ class _ObjectInitializer:
                     value = default()
                 else:
                     prop_type = get_args(field_type)[0]
-                    if get_origin(prop_type) == Union and type(None) in get_args(prop_type):
+                    if get_origin(prop_type) == Union and type(None) in get_args(
+                        prop_type
+                    ):
                         value = None
                     else:
                         raise ValueError(field_name)
@@ -114,10 +121,14 @@ class _ObjectInitializer:
         try:
             value = self._resolve_field(field_name, field_type)
         except ValueError as exc:
-            raise ValueError(f"Missing value for property '{field_name}' for component '{self.name}'") from exc
+            raise ValueError(
+                f"Missing value for property '{field_name}' for component '{self.name}'"
+            ) from exc
         except TypeError as exc:
-            raise ValueError(f"Invalid value for property '{field_name}' for component '{self.name}'. An instance of "
-                             f"Property is required, not {exc.args[1]}") from exc
+            raise ValueError(
+                f"Invalid value for property '{field_name}' for component '{self.name}'. An instance of "
+                f"Property is required, not {exc.args[1]}"
+            ) from exc
         if isinstance(value, Property):
             prop = PropertyView(self.instance, value)
         else:
@@ -129,10 +140,14 @@ class _ObjectInitializer:
         try:
             value = self._resolve_field(field_name, field_type, EventSourceImpl)
         except ValueError as exc:
-            raise ValueError(f"Missing value for event '{field_name}' for component '{self.name}'") from exc
+            raise ValueError(
+                f"Missing value for event '{field_name}' for component '{self.name}'"
+            ) from exc
         except TypeError as exc:
-            raise ValueError(f"Invalid value for event '{field_name}' for component '{self.name}'. An instance of "
-                             f"EventSource is required, not {exc.args[1]}") from exc
+            raise ValueError(
+                f"Invalid value for event '{field_name}' for component '{self.name}'. An instance of "
+                f"EventSource is required, not {exc.args[1]}"
+            ) from exc
         if isinstance(value, EventSource):
             prop = value
         else:
@@ -142,9 +157,13 @@ class _ObjectInitializer:
 
 
 class ComponentFactory:
-
-    def __init__(self, dispatcher: EventDispatcher, event_hub: EventHub, container: ComponentContainer = None,
-                 static: list[Any] = None):
+    def __init__(
+        self,
+        dispatcher: EventDispatcher,
+        event_hub: EventHub,
+        container: ComponentContainer = None,
+        static: list[Any] = None,
+    ):
         self.dispatcher = dispatcher
         self.event_hub = event_hub
         self.container = container
@@ -242,7 +261,14 @@ class ComponentFactory:
             else:
                 self._component_of_types[t].append(instance)
 
-    def add(self, name: str, type_: Type[T], args: Iterable[Any] = tuple(), kwargs: dict = None, properties: dict = None) -> Union[T, Component]:
+    def add(
+        self,
+        name: str,
+        type_: Type[T],
+        args: Iterable[Any] = tuple(),
+        kwargs: dict = None,
+        properties: dict = None,
+    ) -> Union[T, Component]:
         kwargs = kwargs or {}
         properties = properties or {}
 
@@ -251,7 +277,9 @@ class ComponentFactory:
         instance.name = name
 
         if _ObjectInitializer.need_initializing(type_):
-            _ObjectInitializer(name, instance, properties, self.dispatcher, self.event_hub)
+            _ObjectInitializer(
+                name, instance, properties, self.dispatcher, self.event_hub
+            )
 
         self._to_initialize.append((instance, name, args, kwargs))
 
@@ -265,7 +293,7 @@ class ComponentFactory:
 
     def initialize(self) -> None:
         """Initialize each components by calling their `__init__` method. The components are sorted before hand based
-        on the dependency graph. If `container` is not None, each component is added after initialized """
+        on the dependency graph. If `container` is not None, each component is added after initialized"""
 
         definitions = {}
         has_dependencies = []
@@ -275,7 +303,12 @@ class ComponentFactory:
             dependencies = self._inject_dependencies(name, type_, kwargs)
             if dependencies:
                 has_dependencies.append(name)
-                definitions[name] = (list(x.name for x in dependencies if hasattr(x, "name")), instance, args, kwargs)
+                definitions[name] = (
+                    list(x.name for x in dependencies if hasattr(x, "name")),
+                    instance,
+                    args,
+                    kwargs,
+                )
             else:
                 to_initialize.append((instance, args, kwargs))
 

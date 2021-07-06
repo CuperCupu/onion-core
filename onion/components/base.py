@@ -6,7 +6,6 @@ from onion.core.events import EventSource
 
 @runtime_checkable
 class Component(Protocol):
-
     @property
     def name(self) -> str:
         raise NotImplementedError()
@@ -14,14 +13,12 @@ class Component(Protocol):
 
 @runtime_checkable
 class Setup(Protocol):
-
     async def setup(self) -> None:
         pass
 
 
 @runtime_checkable
 class Runnable(Protocol):
-
     async def run(self) -> None:
         """Waits until this component is done running."""
 
@@ -41,7 +38,6 @@ class ValueChangedEvent(Generic[T]):
 
 @runtime_checkable
 class Property(EventSource[ValueChangedEvent[T]], Protocol[T]):
-
     @property
     def owner(self) -> Any:
         raise NotImplementedError()

@@ -13,7 +13,6 @@ class DeclarationException(Exception):
 
 
 class DeclarationProcessor:
-
     def __init__(self, schema: DeclarationSchema):
         self.schema = schema.copy(deep=True)
         self._schemas = {}
@@ -60,7 +59,7 @@ class DeclarationProcessor:
                 type_=schema.cls,
                 args=schema.args,
                 kwargs=schema.kwargs,
-                properties=schema.props
+                properties=schema.props,
             )
             references[component.name] = component
 
@@ -72,8 +71,13 @@ class DeclarationProcessor:
         root = root.split(".") if root else []
         if schema.name in self._schemas:
             raise ValidationError(
-                [ErrorWrapper(ValueError(f"Duplicate component name '{schema.name}'"), loc=("components", *root))],
-                DeclarationSchema
+                [
+                    ErrorWrapper(
+                        ValueError(f"Duplicate component name '{schema.name}'"),
+                        loc=("components", *root),
+                    )
+                ],
+                DeclarationSchema,
             )
         self._schemas[schema.name] = schema
 
@@ -94,9 +98,9 @@ class DeclarationProcessor:
         self.schema.components = [*new_schemas, *self.schema.components]
         self._travel_schemas(new_schemas)
 
-    def _parse_components(self, components: list[ComponentSchema]) -> tuple[list[Replaceable[Reference]], list[
-        Replaceable[
-            ComponentSchema]]]:
+    def _parse_components(
+        self, components: list[ComponentSchema]
+    ) -> tuple[list[Replaceable[Reference]], list[Replaceable[ComponentSchema]]]:
         references = []
         declarations = []
         for component in components:
@@ -113,7 +117,12 @@ class DeclarationProcessor:
 
         return references, declarations
 
-    def _process_field(self, schema: ComponentSchema, fields: Union[list[Any], dict[str, Any]], fields_type: str):
+    def _process_field(
+        self,
+        schema: ComponentSchema,
+        fields: Union[list[Any], dict[str, Any]],
+        fields_type: str,
+    ):
         references = []
         declaration = []
 
@@ -122,25 +131,35 @@ class DeclarationProcessor:
             if isinstance(field_value, Reference):
                 if field_value.ref not in self._schemas:
                     raise ValidationError(
-                        [ErrorWrapper(
-                            NameError(
-                                f"Invalid reference '{field_value.ref}' for field {fields_type} of {schema.name}"),
-                            loc=(schema.name, field_name,)
-                        )],
-                        type(schema)
+                        [
+                            ErrorWrapper(
+                                NameError(
+                                    f"Invalid reference '{field_value.ref}' for field {fields_type} of {schema.name}"
+                                ),
+                                loc=(
+                                    schema.name,
+                                    field_name,
+                                ),
+                            )
+                        ],
+                        type(schema),
                     )
-                references.append(Replaceable(
-                    schema.name,
-                    location=ref_cls(field, field_name),
-                    placeholder=field_value
-                ))
+                references.append(
+                    Replaceable(
+                        schema.name,
+                        location=ref_cls(field, field_name),
+                        placeholder=field_value,
+                    )
+                )
             elif isinstance(field_value, ComponentSchema):
                 field_value.name = schema.name + "." + field_value.name
-                declaration.append(Replaceable(
-                    schema.name,
-                    location=ref_cls(field, field_name),
-                    placeholder=field_value
-                ))
+                declaration.append(
+                    Replaceable(
+                        schema.name,
+                        location=ref_cls(field, field_name),
+                        placeholder=field_value,
+                    )
+                )
             elif isinstance(value, list):
                 for i, item in enumerate(value):
                     parse_field(value, i, item)

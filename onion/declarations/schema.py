@@ -21,17 +21,26 @@ class Reference(BaseModel):
         return ref
 
     @staticmethod
-    def create(ref: str, prop: Optional[str] = None) -> 'Reference':
+    def create(ref: str, prop: Optional[str] = None) -> "Reference":
         return Reference.parse_obj({"$ref": ref, "$prop": prop})
 
 
 class ComponentSchema(BaseModel):
     """Declaration of a Component"""
+
     name: str
     cls: Union[type, str]  # Import name of the class
-    args: list[Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = []
-    kwargs: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}
-    props: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}  # The initial value of properties
+    args: list[
+        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]
+    ] = []
+    kwargs: dict[
+        str,
+        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any],
+    ] = {}
+    props: dict[
+        str,
+        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any],
+    ] = {}  # The initial value of properties
     _to_refer: list[Replaceable[Reference]] = PrivateAttr([])
 
     @property
@@ -70,7 +79,7 @@ class DeclarationSchema(BaseModel):
     components: list[ComponentSchema]
 
     @staticmethod
-    def from_yaml(f: TextIO, safe: bool = True) -> 'DeclarationSchema':
+    def from_yaml(f: TextIO, safe: bool = True) -> "DeclarationSchema":
         if safe:
             data = yaml.safe_load(f)
         else:

@@ -4,7 +4,6 @@ from typing import runtime_checkable, Protocol, Any, TypeVar, Generic
 
 @runtime_checkable
 class VariableReference(Protocol):
-
     def _get(self) -> Any:
         raise NotImplementedError()
 
