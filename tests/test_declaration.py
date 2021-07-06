@@ -32,12 +32,7 @@ async def test_declaration(default_app, default_schema):
         ]
     )
 
-    processor = DeclarationProcessor(schema)
-
-    application = default_app()
-
-    with application.factory() as factory:
-        processor.create_with(factory)
+    application = default_app(schema)
 
     thermometer = application.components["thermometer"]
     actuator = application.components["actuator"]
@@ -134,12 +129,7 @@ async def test_nested_component(default_app, default_schema):
         ]
     )
 
-    processor = DeclarationProcessor(schema)
-
-    application = default_app()
-
-    with application.factory() as factory:
-        processor.create_with(factory)
+    application = default_app(schema)
 
     simulator = application.components["simulator"]
     thermometer = application.components["simulator.thermometer"]

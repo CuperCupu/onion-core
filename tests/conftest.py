@@ -4,7 +4,7 @@ import pytest
 
 from onion.components import Application
 from onion.core.events import DefaultEventDispatcher
-from onion.declarations import ComponentSchema, DeclarationSchema
+from onion.declarations import ComponentSchema, DeclarationSchema, DeclarationProcessor
 
 
 def pytest_collection_modifyitems(session, config, items):
@@ -19,10 +19,15 @@ def _create_default_schema(components: list[ComponentSchema]) -> DeclarationSche
     return DeclarationSchema(name="testing", version="testing", components=components)
 
 
-def _create_default_app() -> Application:
+def _create_default_app(schema: DeclarationSchema) -> Application:
     dispatcher = DefaultEventDispatcher()
 
     application = Application(dispatcher)
+
+    processor = DeclarationProcessor(schema)
+
+    with application.factory() as factory:
+        processor.create_with(factory)
 
     return application
 

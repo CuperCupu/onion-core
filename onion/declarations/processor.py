@@ -182,12 +182,12 @@ class DeclarationProcessor:
                         placeholder=field_value,
                     )
                 )
-            elif isinstance(value, list):
-                for i, item in enumerate(value):
-                    parse_field(value, i, item, (*loc, i))
-            elif isinstance(value, dict):
-                for sub_key, sub_value in value.items():
-                    parse_field(value, sub_key, sub_value, (*loc, sub_key))
+            elif isinstance(field_value, list):
+                for i, item in enumerate(field_value):
+                    parse_field(field_value, i, item, (*loc, i))
+            elif isinstance(field_value, dict):
+                for sub_key, sub_value in field_value.items():
+                    parse_field(field_value, sub_key, sub_value, (*loc, sub_key))
 
         if isinstance(fields, list):
             for key, value in enumerate(fields):

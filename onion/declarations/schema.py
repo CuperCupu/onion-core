@@ -1,21 +1,46 @@
 from __future__ import annotations
 
 import importlib
-from functools import cached_property
-from typing import Optional, Any, Union, List, TextIO, Iterable
+from typing import Optional, Any, Union, List, TextIO, Iterable, TypeVar, Dict, Generic
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, validator
+from pydantic import BaseModel, Field, PrivateAttr, validator, ValidationError
+from pydantic.generics import GenericModel
 
+from onion.components import Input
 from onion.components.reflection import ClassReflection
+from .contextual import Evaluable, ConfigProperty, EvaluatedProperty
 from .repl import Replaceable
 from .util import validation_error
-from ..components import Input
+
+T = TypeVar("T")
+
+RichType = Union[ConfigProperty[T], EvaluatedProperty[T], T]
 
 
-class Reference(BaseModel):
-    ref: str = Field(alias="$ref")
-    prop: Optional[str] = Field(alias="$prop", default=None)
+def substitute(value):
+    if isinstance(value, Evaluable):
+        return value.evaluate()
+    elif isinstance(value, list):
+        return list(substitute(x) for x in value)
+    elif isinstance(value, dict):
+        return {k: substitute(v) for k, v in value.items()}
+    return value
+
+
+RichStr = RichType[str]
+RichInt = RichType[str]
+
+
+class SchemaBaseModel(BaseModel):
+    @validator("*", each_item=False, always=True)
+    def validate_each_item(cls, v):
+        return substitute(v)
+
+
+class Reference(SchemaBaseModel):
+    ref: RichStr = Field(alias="$ref")
+    prop: Optional[RichStr] = Field(alias="$prop", default=None)
 
     def resolve(self, references) -> Any:
         ref = references[self.ref]
@@ -28,21 +53,39 @@ class Reference(BaseModel):
         return Reference.parse_obj({"$ref": ref, "$prop": prop})
 
 
-class ComponentSchema(BaseModel):
+class ComponentSchema(SchemaBaseModel):
     """Declaration of a Component"""
 
-    name: str
-    cls: Union[type, str]  # Import name of the class
+    name: RichStr
+    cls: Union[type, RichStr]  # Import name of the class
     args: list[
-        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]
+        Union[
+            Reference,
+            list[Reference],
+            ComponentSchema,
+            list[ComponentSchema],
+            RichType[Any],
+        ]
     ] = []
     kwargs: dict[
         str,
-        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any],
+        Union[
+            Reference,
+            list[Reference],
+            ComponentSchema,
+            list[ComponentSchema],
+            RichType[Any],
+        ],
     ] = {}
     props: dict[
         str,
-        Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any],
+        Union[
+            Reference,
+            list[Reference],
+            ComponentSchema,
+            list[ComponentSchema],
+            RichType[Any],
+        ],
     ] = {}  # The initial value of properties
     _to_refer: list[Replaceable[Reference]] = PrivateAttr([])
 
@@ -101,7 +144,7 @@ class ComponentSchema(BaseModel):
         self.validate_schema()
 
 
-class DeclarationSchema(BaseModel):
+class DeclarationSchema(SchemaBaseModel):
     name: str
     version: str
     requirements: list[str] = []
