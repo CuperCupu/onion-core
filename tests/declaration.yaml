@@ -1,5 +1,5 @@
-name: Example App
-version: 0.1.0
+name: testing
+version: testing
 requirements:
   - onion-core
 components:
@@ -11,14 +11,15 @@ components:
       temperature:
         $ref: thermometer
         $prop: temperature
-  - name: accumulator
+  - name: actuator
     type: component
-    cls: example_app.accumulator.Accumulator
-    kwargs:
-      checker:
-        - $ref: checker
+    cls: example_app.actuator.Actuator
+    props:
+      event:
+        $ref: checker
+        $prop: changed
   - name: thermometer
     type: component
     cls: example_app.thermometer.Thermometer
     props:
-      temperature: 50.0
+      temperature: 5.0

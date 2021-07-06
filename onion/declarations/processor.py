@@ -1,162 +1,21 @@
-from __future__ import annotations
+from typing import Any, Union, List
 
-import importlib
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, TextIO, Optional, Union, Protocol, runtime_checkable, Generic, TypeVar, List
-
-import yaml
-from pydantic import BaseModel, validator, Field, ValidationError, PrivateAttr
+from pydantic import ValidationError
 from pydantic.error_wrappers import ErrorWrapper
 
-from onion.components.factory import ComponentFactory, ClassReflection
-
-
-class CompType(str, Enum):
-    COMPONENT = "component"
-
-
-class Reference(BaseModel):
-    ref: str = Field(alias="$ref")
-    prop: Optional[str] = Field(alias="$prop", default=None)
-
-    def resolve(self, references) -> Any:
-        ref = references[self.ref]
-        if self.prop is not None:
-            ref = getattr(ref, self.prop)
-        return ref
-
-
-class ComponentSchema(BaseModel):
-    """Declaration of a Component"""
-    name: str
-    cls: type  # Import name of the class
-    args: list[Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = []
-    kwargs: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}
-    props: dict[str, Union[Reference, list[Reference], ComponentSchema, list[ComponentSchema], Any]] = {}  # The initial value of properties
-    _to_refer: list[Replaceable[Reference]] = PrivateAttr([])
-
-    @property
-    def to_refer(self) -> List[Replaceable[Reference]]:
-        return self._to_refer
-
-    @validator("cls", pre=True)
-    def validate_cls(cls, v):
-        module_name, cls_name = v.rsplit(".", maxsplit=1)
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError:
-            raise ValueError(f"No module named '{module_name}'")
-        cls_ = getattr(module, cls_name, ...)
-        if cls_ is ...:
-            raise ValueError(f"'{cls_name}' is not found module '{module_name}'")
-
-        return cls_
-
-    @validator("props")
-    def validate_properties(cls, v, values):
-        reflection = ClassReflection(values["cls"])
-        reflection.properties
-
-        return v
-
-
-ComponentSchema.update_forward_refs()
-
-
-# class ComponentDecl(BaseModel):
-#     name: str
-#     type: CompType
-#     _value: Union[ComponentSchema] = PrivateAttr()
-#
-#     @property
-#     def value(self) -> Union[ComponentSchema]:
-#         return self._value
-#
-#     def __init__(self, **data: Any):
-#         super().__init__(**data)
-#
-#         if self.type == CompType.COMPONENT:
-#             self._value = ComponentSchema.parse_obj(data)
-#         else:
-#             raise TypeError(f"Unknown component type: {self.type}")
-
-
-class DeclarationSchema(BaseModel):
-    name: str
-    version: str
-    requirements: list[str] = []
-    includes: list[str] = []
-    components: list[ComponentSchema]
-
-
-@runtime_checkable
-class VariableReference(Protocol):
-
-    def _get(self) -> Any:
-        raise NotImplementedError()
-
-    def _set(self, value: Any) -> None:
-        raise NotImplementedError()
-
-    value = property(_get, _set)
-
-
-@dataclass
-class DictReference:
-    container: dict[str, Any]
-    key: str
-
-    def _get(self) -> Any:
-        return self.container[self.key]
-
-    def _set(self, value: Any) -> None:
-        self.container[self.key] = value
-
-    value = property(_get, _set)
-
-
-@dataclass
-class ListReference:
-    container: list[Any]
-    key: int
-
-    def _get(self) -> Any:
-        return self.container[self.key]
-
-    def _set(self, value: Any) -> None:
-        self.container[self.key] = value
-
-    value = property(_get, _set)
-
-
-T = TypeVar("T")
-
-
-@dataclass
-class Replaceable(Generic[T]):
-    owner: str
-    location: VariableReference
-    placeholder: T
-
-    def replace(self, value: Any) -> None:
-        self.location.value = value
-
-    class Config:
-        arbitrary_types_allowed = True
+from onion.components.factory import ComponentFactory
+from .repl import DictReference, ListReference, Replaceable
+from .schema import Reference, ComponentSchema, DeclarationSchema
 
 
 class DeclarationException(Exception):
     pass
 
 
-class Declaration:
+class DeclarationProcessor:
 
-    def __init__(self, schema: Union[dict[str, Any], DeclarationSchema]):
-        if isinstance(schema, dict):
-            self.schema = DeclarationSchema.parse_obj(schema)
-        else:
-            self.schema = schema.copy(deep=True)
+    def __init__(self, schema: DeclarationSchema):
+        self.schema = schema.copy(deep=True)
         self._schemas = {}
         for component in self.schema.components:
             self._register_schema(component)
@@ -227,7 +86,7 @@ class Declaration:
         for declared in to_declare:
             self._register_schema(declared.placeholder, declared.owner)
             new_schemas.append(declared.placeholder)
-            ref = Reference.parse_obj({"$ref": declared.placeholder.name})
+            ref = Reference.create(ref=declared.placeholder.name)
             ref_repl = Replaceable(declared.owner, declared.location, ref)
             to_refer.append(ref_repl)
             declared.replace(ref)
@@ -235,7 +94,9 @@ class Declaration:
         self.schema.components = [*new_schemas, *self.schema.components]
         self._travel_schemas(new_schemas)
 
-    def _parse_components(self, components: list[ComponentSchema]) -> tuple[list[Replaceable[Reference]], list[Replaceable[ComponentSchema]]]:
+    def _parse_components(self, components: list[ComponentSchema]) -> tuple[list[Replaceable[Reference]], list[
+        Replaceable[
+            ComponentSchema]]]:
         references = []
         declarations = []
         for component in components:
@@ -262,7 +123,8 @@ class Declaration:
                 if field_value.ref not in self._schemas:
                     raise ValidationError(
                         [ErrorWrapper(
-                            NameError(f"Invalid reference '{field_value.ref}' for field {fields_type} of {schema.name}"),
+                            NameError(
+                                f"Invalid reference '{field_value.ref}' for field {fields_type} of {schema.name}"),
                             loc=(schema.name, field_name,)
                         )],
                         type(schema)
@@ -296,8 +158,3 @@ class Declaration:
         schema.to_refer.extend(references)
 
         return references, declaration
-
-    @staticmethod
-    def from_yaml(f: TextIO) -> 'Declaration':
-        data = yaml.full_load(f)
-        return Declaration(data)

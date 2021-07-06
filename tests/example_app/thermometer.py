@@ -1,5 +1,4 @@
-from onion.components import Property, Input
-from onion.components.base import ValueChangedEvent
+from onion.components import Property
 
 
 class Thermometer:

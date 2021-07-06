@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import runtime_checkable, Protocol, TypeVar, Any, Generic
 
-from onion.core.events import EventSource, Event
+from onion.core.events import EventSource
 
 
 @runtime_checkable
@@ -34,8 +34,7 @@ E = TypeVar("E")
 
 
 @dataclass
-class ValueChangedEvent(Event, Generic[T]):
-    sender: Any
+class ValueChangedEvent(Generic[T]):
     value: T
     prev_value: T
 

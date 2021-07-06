@@ -1,48 +1,45 @@
 from dataclasses import dataclass
+from typing import Any
 
-import pytest
-
-from onion.core.events import EventSourceImpl, EventSource, Event, DefaultEventDispatcher
+from onion.core.events import EventSourceImpl, EventSource, DefaultEventDispatcher
 
 
 @dataclass
-class ExampleEvent(Event):
+class ExampleEvent:
     value: int
 
 
-@pytest.mark.asyncio_cooperative
 async def test_default_dispatcher():
     dispatcher = DefaultEventDispatcher()
 
     value = 0
 
-    async def listener(event: ExampleEvent) -> None:
+    async def listener(sender: Any, event: ExampleEvent) -> None:
         nonlocal value
-        assert event.sender == dispatcher
+        assert sender == dispatcher
 
         value += event.value
 
-    dispatcher.dispatch(ExampleEvent(dispatcher, 5), [listener])
+    dispatcher.dispatch(dispatcher, ExampleEvent(5), [listener])
 
     await dispatcher.run()
 
 
-@pytest.mark.asyncio_cooperative
 async def test_source():
     dispatcher = DefaultEventDispatcher()
 
-    source: EventSource[ExampleEvent] = EventSourceImpl(dispatcher)
+    source: EventSource[ExampleEvent] = EventSourceImpl()
 
     value = 0
 
     @source.listen
-    async def listener(event: ExampleEvent) -> None:
+    async def listener(sender: Any, event: ExampleEvent) -> None:
         nonlocal value
-        assert event.sender == source
+        assert sender == source
 
         value += event.value
 
-    source.dispatch(ExampleEvent(source, 5))
+    dispatcher.dispatch_for(source, ExampleEvent(5), source)
 
     await dispatcher.run()
 
@@ -50,7 +47,7 @@ async def test_source():
 
     source.remove_listener(listener)
 
-    source.dispatch(ExampleEvent(source, 5))
+    dispatcher.dispatch_for(source, ExampleEvent(5), source)
 
     await dispatcher.run()
 

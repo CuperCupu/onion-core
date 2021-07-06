@@ -1,8 +1,8 @@
 import asyncio
 from dataclasses import dataclass
-from typing import Generic, Any, Type, TypeVar
+from typing import Any, Type, TypeVar, Iterable
 
-from onion.core.events import EventDispatcher, EventSourceImpl, EventSource, EventType, EventListener, Event
+from onion.core.events import EventDispatcher, EventSourceImpl, EventSource, EventType, EventListener
 from .base import Property, ValueChangedEvent
 
 T = TypeVar("T")
@@ -19,11 +19,12 @@ class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
     _type: Type[T]
 
     def __init__(self, owner: Any, initial_value: T, dispatcher: EventDispatcher):
-        super().__init__(dispatcher)
+        super().__init__()
         self._type = type(initial_value)
         self._value = initial_value
         self._loop = asyncio.get_running_loop()
         self._owner = owner
+        self.dispatcher = dispatcher
 
     @property
     def owner(self) -> Any:
@@ -32,8 +33,8 @@ class PropertyImpl(EventSourceImpl[ValueChangedEvent[T]], Property[T]):
     def _set_value(self, value: T) -> None:
         prev_value = self._value
         self._value = value
-        ev = ValueChangedEvent(self, value, prev_value)
-        self.dispatch(ev)
+        ev = ValueChangedEvent(value, prev_value)
+        self.dispatcher.dispatch_for(self, ev, self)
 
     def _get_value(self) -> T:
         return self._value
@@ -51,6 +52,10 @@ class PropertyView(Property[T], EventSource[ValueChangedEvent[T]]):
         self._owner = owner
 
     @property
+    def listeners(self) -> Iterable[EventListener[EventType]]:
+        return self._prop.listeners
+
+    @property
     def owner(self) -> Any:
         return self._owner
 
@@ -58,14 +63,11 @@ class PropertyView(Property[T], EventSource[ValueChangedEvent[T]]):
     def prop(self) -> Property[T]:
         return self._prop
 
-    def add_listener(self, listener: EventListener[EventType]) -> None:
+    def add_listener(self, listener: EventListener[ValueChangedEvent[T]]) -> None:
         self._prop.add_listener(listener)
 
-    def remove_listener(self, listener: EventListener[EventType]) -> None:
+    def remove_listener(self, listener: EventListener[ValueChangedEvent[T]]) -> None:
         self._prop.remove_listener(listener)
-
-    def dispatch(self, event: Event) -> None:
-        raise TypeError("Unable to dispatch event of property view")
 
     @property
     def value(self) -> T:

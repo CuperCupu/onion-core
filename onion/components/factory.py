@@ -3,7 +3,7 @@ from collections import abc
 from typing import TypeVar, Any, Type, get_origin, get_args, Union, Iterable
 
 from onion.components.component import Inject, PropertyImpl, PropertyView, Input
-from onion.core.events import EventDispatcher, EventHub
+from onion.core.events import EventHub, EventSource, EventSourceImpl, EventDispatcher
 from .base import Component, Property
 from .container import ComponentContainer
 
@@ -60,6 +60,10 @@ class ClassReflection:
     def properties(self) -> list[FieldReflection]:
         return self._find_fields_for_generic(Property)
 
+    @property
+    def events(self) -> list[FieldReflection]:
+        return self._find_fields_for_generic(EventSource)
+
 
 class _ObjectInitializer:
 
@@ -80,20 +84,26 @@ class _ObjectInitializer:
         reflection = ClassReflection(self.type)
         for field in reflection.properties:
             self._add_property(field.name, field.type)
+        for field in reflection.events:
+            self._add_event(field.name, field.type)
 
-    def _resolve_field(self, field_name: str, field_type: type):
+    def _resolve_field(self, field_name: str, field_type: type, default=None):
         default_value = getattr(self.type, field_name, ...)
+        origin = get_origin(field_type)
         if field_name in self.kwargs:
             value = self.kwargs.pop(field_name)
-            if isinstance(default_value, Input) and not isinstance(value, Property):
+            if isinstance(default_value, Input) and not isinstance(value, origin):
                 raise TypeError(field_name, type(value))
         else:
             if default_value is ...:
-                prop_type = get_args(field_type)[0]
-                if get_origin(prop_type) == Union and type(None) in get_args(prop_type):
-                    value = None
+                if default:
+                    value = default()
                 else:
-                    raise ValueError(field_name)
+                    prop_type = get_args(field_type)[0]
+                    if get_origin(prop_type) == Union and type(None) in get_args(prop_type):
+                        value = None
+                    else:
+                        raise ValueError(field_name)
             elif isinstance(default_value, Input):
                 raise ValueError(field_name)
             else:
@@ -112,6 +122,21 @@ class _ObjectInitializer:
             prop = PropertyView(self.instance, value)
         else:
             prop = PropertyImpl(self.instance, value, self.dispatcher)
+            self.event_hub.register(f"{self.name}!{field_name}", prop)
+        setattr(self.instance, field_name, prop)
+
+    def _add_event(self, field_name: str, field_type: type) -> None:
+        try:
+            value = self._resolve_field(field_name, field_type, EventSourceImpl)
+        except ValueError as exc:
+            raise ValueError(f"Missing value for event '{field_name}' for component '{self.name}'") from exc
+        except TypeError as exc:
+            raise ValueError(f"Invalid value for event '{field_name}' for component '{self.name}'. An instance of "
+                             f"EventSource is required, not {exc.args[1]}") from exc
+        if isinstance(value, EventSource):
+            prop = value
+        else:
+            prop = EventSourceImpl()
             self.event_hub.register(f"{self.name}!{field_name}", prop)
         setattr(self.instance, field_name, prop)
 
@@ -234,9 +259,9 @@ class ComponentFactory:
 
         return instance
 
-    def _initialize(self, args, kwargs, instance: Any) -> None:
-        type_ = type(instance)
-        type_.__init__(instance, *args, **kwargs)
+    @staticmethod
+    def _initialize(args, kwargs, instance: Any) -> None:
+        instance.__init__(*args, **kwargs)
 
     def initialize(self) -> None:
         """Initialize each components by calling their `__init__` method. The components are sorted before hand based
