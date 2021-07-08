@@ -22,4 +22,5 @@ components:
     type: component
     cls: example_app.thermometer.Thermometer
     props:
-      temperature: 5.0
+      temperature:
+        $eval: 10.0 + $config.123a

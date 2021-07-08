@@ -8,13 +8,13 @@ from pydantic import BaseModel, Field, PrivateAttr, validator
 
 from onion.components import Input
 from onion.components.reflection import ClassReflection
-from .contextual import Evaluable, ConfigProperty, EvaluatedProperty
+from .contextual import EvaluableType, Evaluable
 from .repl import Replaceable
 from .util import validation_error
 
 T = TypeVar("T")
 
-RichType = Union[ConfigProperty[T], EvaluatedProperty[T], T]
+RichType = Union[EvaluableType[T], T]
 
 
 def substitute(value):
@@ -28,7 +28,7 @@ def substitute(value):
 
 
 RichStr = RichType[str]
-RichInt = RichType[str]
+RichInt = RichType[int]
 
 
 class SchemaBaseModel(BaseModel):

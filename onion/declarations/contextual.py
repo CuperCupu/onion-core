@@ -1,6 +1,17 @@
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import runtime_checkable, Protocol, Any, Collection, Generic, TypeVar
+from re import Match
+from typing import (
+    runtime_checkable,
+    Protocol,
+    Any,
+    Collection,
+    Generic,
+    TypeVar,
+    Union,
+    Optional,
+)
 
 from pydantic import BaseModel, Field
 
@@ -82,8 +93,60 @@ class ConfigProperty(BaseModel, Generic[T]):
         return ConfigProperty(**{"$config": config, "$default": default})
 
 
+config_syntax = re.compile(
+    r"\$config\.(\w+(?:\.\w+)*)(?=\s|$|\+|-|\*|\*\*|\/|\/\/|%|@|<<|>>|&|\||\^|~|<|>|<=|>=|==|!=)"
+)
+
+
+class GlobalContext:
+
+    _context = ContextVar("global_context")
+
+    def __init__(self, static: dict[str, Any]):
+        self.static = static
+
+    @contextmanager
+    def context(self):
+        token = self._context.set(self)
+        yield self
+        self._context.reset(token)
+
+    @classmethod
+    def current(cls) -> Optional["GlobalContext"]:
+        try:
+            return cls._context.get()
+        except LookupError:
+            return None
+
+    def evaluate(self, expr: str) -> Any:
+        config_context = ConfigResolver.current()
+
+        scopes = {**self.static, "config": config_context}
+
+        def get_config(match: Match):
+            return f"config['{match.group(1)}']"
+
+        parsed = config_syntax.sub(get_config, expr)
+
+        rv = eval(parsed, scopes)
+
+        return rv
+
+
 class EvaluatedProperty(BaseModel, Generic[T]):
-    script: str = Field(alias="eval")
+    expr: str = Field(alias="$eval")
 
     def evaluate(self) -> T:
-        return None
+        context = GlobalContext.current()
+        if context:
+            result = context.evaluate(self.expr)
+        else:
+            result = eval(self.expr)
+        return result
+
+    @staticmethod
+    def of(expr: str) -> "EvaluatedProperty":
+        return EvaluatedProperty.parse_obj({"$eval": expr})
+
+
+EvaluableType = Union[ConfigProperty[T], EvaluatedProperty[T]]
