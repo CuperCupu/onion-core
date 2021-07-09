@@ -1,4 +1,4 @@
-from typing import Any, Union, Sequence
+from typing import Any, Union, Sequence, Iterable
 
 from onion.components.factory import ComponentFactory
 from .repl import Replaceable, VariableReference
@@ -15,14 +15,14 @@ class DeclarationProcessor:
     _to_refer: list[Replaceable[Reference]]
 
     def __init__(self, schema: DeclarationSchema):
-        self.schema = schema.copy(deep=True)
+        self.schema: DeclarationSchema = schema.copy(deep=True)
         self._schemas = {}
-        for component in self.schema.components:
+        for component in self.schema.components.values():
             self._register_schema(component)
 
         self._to_refer = []
 
-        self._travel_schemas(self.schema.components)
+        self._travel_schemas(self.schema.components.values())
         self._created = False
 
     def create_with(self, factory: ComponentFactory) -> list[Any]:
@@ -45,7 +45,7 @@ class DeclarationProcessor:
 
             to_instantiate.append(schema_)
 
-        for schema in self.schema.components:
+        for schema in self._schemas.values():
             visit(schema)
 
         components = []
@@ -78,7 +78,7 @@ class DeclarationProcessor:
             )
         self._schemas[schema.name] = schema
 
-    def _travel_schemas(self, components: list[ComponentSchema]) -> None:
+    def _travel_schemas(self, components: Iterable[ComponentSchema]) -> None:
         """Travel the components schema to flatten nested definitions."""
         if not components:
             return
@@ -93,11 +93,10 @@ class DeclarationProcessor:
             declared.owner.to_refer.append(ref_repl)
             declared.replace(ref)
         self._to_refer.extend(to_refer)
-        self.schema.components = [*new_schemas, *self.schema.components]
         self._travel_schemas(new_schemas)
 
     def _parse_components(
-        self, components: list[ComponentSchema]
+        self, components: Iterable[ComponentSchema]
     ) -> tuple[list[Replaceable[Reference]], list[Replaceable[ComponentSchema]]]:
         references = []
         declarations = []

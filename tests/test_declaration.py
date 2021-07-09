@@ -1,7 +1,5 @@
 import pytest
 
-from onion.components import Application
-from onion.core.events import DefaultEventDispatcher
 from onion.declarations import DeclarationProcessor, ValidationError
 from onion.declarations.schema import ComponentSchema, Reference
 

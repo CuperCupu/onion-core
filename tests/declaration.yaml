@@ -1,26 +1,39 @@
 name: testing
 version: testing
+configurations:
+  - backend: yaml
+    filename: config.yaml
 requirements:
   - onion-core
 components:
-  - name: checker
-    type: component
-    cls: example_app.checker.ThresholdChecker
-    props:
-      threshold: 10.0
-      temperature:
-        $ref: thermometer
-        $prop: temperature
-  - name: actuator
-    type: component
-    cls: example_app.actuator.Actuator
-    props:
-      event:
-        $ref: checker
-        $prop: changed
+#  - name: checker
+#    type: component
+#    cls: example_app.checker.ThresholdChecker
+#    props:
+#      threshold: 10.0
+#      temperature:
+#        $ref: thermometer
+#        $prop: temperature
+#  - name: actuator
+#    type: component
+#    cls: example_app.actuator.Actuator
+#    props:
+#      event:
+#        $ref: checker
+#        $prop: changed
   - name: thermometer
     type: component
     cls: example_app.thermometer.Thermometer
     props:
       temperature:
-        $eval: 10.0 + $config.123a
+        $eval: 10.0 + $config.initial_temperature
+  - $type: component
+    name: simulator
+    cls: example_app.TemperatureSimulator
+    args:
+      - 0.2
+    kwargs:
+      thermometer:
+        $ref: thermometer
+    props:
+      fluctuation: 10.0

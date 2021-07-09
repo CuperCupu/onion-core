@@ -2,10 +2,10 @@ import pytest
 
 from onion.declarations.contextual import (
     ConfigProperty,
-    ConfigResolver,
-    GlobalContext,
     EvaluatedProperty,
 )
+from onion.declarations.contextual.config import ConfigContext
+from onion.declarations.contextual.evaluation import EvaluationContext
 from onion.declarations.schema import ComponentSchema
 
 
@@ -18,7 +18,7 @@ from onion.declarations.schema import ComponentSchema
     ),
 )
 async def test_config_resolution(default_app, default_schema, value: float, config):
-    resolver = ConfigResolver(backends=[{"temperature": value}])
+    resolver = ConfigContext(backends=[{"temperature": value}])
     with resolver.context():
         schema = default_schema(
             components=[
@@ -39,8 +39,8 @@ async def test_config_resolution(default_app, default_schema, value: float, conf
 
 @pytest.mark.parametrize(("value", "expr"), ((5.0, {"$eval": "5"}),))
 async def test_evaluation(default_app, default_schema, value: float, expr):
-    resolver = ConfigResolver(backends=[{"temperature": 5}])
-    context = GlobalContext({})
+    resolver = ConfigContext(backends=[{"temperature": 5}])
+    context = EvaluationContext({})
 
     with resolver.context():
         with context.context():

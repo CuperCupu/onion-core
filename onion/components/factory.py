@@ -67,7 +67,7 @@ class _ObjectInitializer:
         if field.name in self.kwargs:
             value = self.kwargs.pop(field.name)
             if isinstance(field.default, Input) and not isinstance(value, field.origin):
-                raise TypeError(field.name, type(value))
+                raise TypeError(field.name, type(value), value)
         else:
             if field.default is ...:
                 if default:
@@ -94,10 +94,7 @@ class _ObjectInitializer:
                 f"Missing value for property '{field.name}' for component '{self.name}'"
             ) from exc
         except TypeError as exc:
-            raise ValueError(
-                f"Invalid value for property '{field.name}' for component '{self.name}'. An instance of "
-                f"Property is required, not {exc.args[1]}"
-            ) from exc
+            value = PropertyImpl(None, exc.args[2], self.dispatcher)
         if isinstance(value, Property):
             prop = PropertyView(self.instance, value)
         else:
